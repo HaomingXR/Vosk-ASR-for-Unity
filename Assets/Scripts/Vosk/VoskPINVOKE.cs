@@ -1,10 +1,7 @@
 namespace Vosk
 {
-
-    class VoskPINVOKE
+    internal static class VoskPINVOKE
     {
-        static VoskPINVOKE() { }
-
         [global::System.Runtime.InteropServices.DllImport("libvosk", EntryPoint = "vosk_model_new")]
         public static extern global::System.IntPtr new_Model(string jarg1);
 
@@ -71,5 +68,4 @@ namespace Vosk
         [global::System.Runtime.InteropServices.DllImport("libvosk", EntryPoint = "vosk_gpu_thread_init")]
         public static extern void GpuThreadInit();
     }
-
 }

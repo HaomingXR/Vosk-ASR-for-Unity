@@ -1,7 +1,6 @@
 namespace Vosk
 {
-
-    public class Vosk
+    internal static class Vosk
     {
         public static void SetLogLevel(int level)
         {
@@ -18,5 +17,4 @@ namespace Vosk
             VoskPINVOKE.GpuThreadInit();
         }
     }
-
 }

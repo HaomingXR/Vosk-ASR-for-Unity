@@ -1,19 +1,19 @@
 /* ===================================================================================================
  * A Unity script for recording and delivering frames of audio for real-time processing.
- * 
- * Written by. Picovoice 
+ *
+ * Written by. Picovoice
  * 2021-02-19
- * 
+ *
  * Apache License
- * 
+ *
  * Copyright (c) 2021 Picovoice
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"):
  *      You may not use this file except in compliance with the License.
  *      You may obtain a copy of the License at
- *   
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- *   
+ *
  *      Unless required by applicable law or agreed to in writing, software dis-
  *      tributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  *      WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -21,24 +21,34 @@
  *      under the License.
 =================================================================================================== */
 
+/* ===================================================================================================
+ *
+ * Edited by. Haoming
+ * 2023-10-16
+ *
+=================================================================================================== */
 
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-
 /// <summary>
 /// Class that records audio and delivers frames for real-time audio processing
 /// </summary>
-public class VoiceProcessor
+public static class VoiceProcessor
 {
     // === Microphone Devices ===
 
     /// <summary>
     /// Indicates whether microphone is capturing or not
     /// </summary>
-    public static bool IsRecording { get { return _audioClip != null && Microphone.IsRecording(CurrentDeviceName()); } }
+    public static bool IsRecording { get { return _audioClip != null && Microphone.IsRecording(CurrentDeviceName); } }
+
+    /// <summary>
+    /// Available audio recording devices
+    /// </summary>
+    private static List<string> availableDevices;
 
     /// <summary>
     /// Index of selected audio recording device
@@ -46,20 +56,23 @@ public class VoiceProcessor
     public static int CurrentDeviceIndex { get; private set; }
 
     /// <summary>
-    /// Available audio recording devices
-    /// </summary>
-    private static List<string> Devices;
-
-    /// <summary>
     /// Name of selected audio recording device
     /// </summary>
-    public static string CurrentDeviceName()
+    public static string CurrentDeviceName
     {
-        if (CurrentDeviceIndex < 0 || CurrentDeviceIndex >= Microphone.devices.Length)
-            return string.Empty;
+        get
+        {
+            if (CurrentDeviceIndex < 0 || CurrentDeviceIndex >= Microphone.devices.Length)
+                return string.Empty;
 
-        return Devices[CurrentDeviceIndex];
+            return availableDevices[CurrentDeviceIndex];
+        }
     }
+
+    /// <summary>
+    /// Get the AudioClip used for capturing
+    /// </summary>
+    public static AudioClip GetClip() => _audioClip;
 
     // === Microphone Settings ===
 
@@ -90,7 +103,6 @@ public class VoiceProcessor
     /// </summary>
     public static event Action OnRecordingStart;
 
-
     // === Voice Detection Settings ===
 
     /// <summary>
@@ -113,6 +125,8 @@ public class VoiceProcessor
     private static bool _didDetect;
     private static bool _transmit;
 
+    private static float[] sampleBuffer;
+
     private static AudioClip _audioClip;
     private static event Action RestartRecording;
 
@@ -121,23 +135,25 @@ public class VoiceProcessor
     /// <summary>
     /// Updates list of available audio devices
     /// </summary>
+    /// <param name="caller">The MonoBehaviour to run the audio capturing on. The GameObject should never be destoryed.</param>
+    /// <param name="microphoneIndex">Index of audio recording device to use</param>
     public static void Init(MonoBehaviour caller, int microphoneIndex)
     {
         instance = caller;
-        Devices = new List<string>();
-        Devices.AddRange(Microphone.devices);
+        availableDevices = new List<string>();
+        availableDevices.AddRange(Microphone.devices);
 
-        if (Devices.Count < 1)
+        if (availableDevices.Count < 1)
         {
             CurrentDeviceIndex = -1;
-            Debug.LogError("There is no valid recording device connected");
+            Debug.LogError("[Voice Processor] No valid audio input device detected!");
             return;
         }
 
-        if (microphoneIndex < 0 || microphoneIndex >= Devices.Count)
+        if (microphoneIndex < 0 || microphoneIndex >= availableDevices.Count)
         {
-            Debug.LogError($"Specified device index {microphoneIndex} is not a valid recording device");
-            return;
+            Debug.LogWarning($"[Voice Processor] Specified device index \"{microphoneIndex}\" is invalid! Defaults to \"0\"...");
+            microphoneIndex = 0;
         }
 
         CurrentDeviceIndex = microphoneIndex;
@@ -149,16 +165,15 @@ public class VoiceProcessor
     /// <param name="deviceIndex">Index of the new audio capture device</param>
     public static void ChangeDevice(int deviceIndex)
     {
-        if (deviceIndex < 0 || deviceIndex >= Devices.Count)
+        if (deviceIndex < 0 || deviceIndex >= availableDevices.Count)
         {
-            Debug.LogError($"Specified device index {deviceIndex} is not a valid recording device");
+            Debug.LogWarning($"[Voice Processor] Specified device index \"{deviceIndex}\" is invalid!");
             return;
         }
 
         if (IsRecording)
         {
-            // one time event to restart recording with the new device 
-            // the moment the last session has completed
+            // one time event to restart recording with the new device
             RestartRecording += () =>
             {
                 CurrentDeviceIndex = deviceIndex;
@@ -202,7 +217,8 @@ public class VoiceProcessor
         SampleRate = sampleRate;
         FrameLength = frameSize;
 
-        _audioClip = Microphone.Start(CurrentDeviceName(), true, 1, sampleRate);
+        sampleBuffer = new float[FrameLength];
+        _audioClip = Microphone.Start(CurrentDeviceName, true, 1, sampleRate);
 
         instance.StartCoroutine(RecordData());
     }
@@ -215,28 +231,25 @@ public class VoiceProcessor
         if (!IsRecording)
             return;
 
-        Microphone.End(CurrentDeviceName());
-        AudioClip.Destroy(_audioClip);
-        _audioClip = null;
         _didDetect = false;
-    }
+        Microphone.End(CurrentDeviceName);
 
-    public static AudioClip GetClip() => _audioClip;
+        UnityEngine.Object.Destroy(_audioClip);
+        _audioClip = null;
+    }
 
     /// <summary>
     /// Loop for buffering incoming audio data and delivering frames
     /// </summary>
     private static IEnumerator RecordData()
     {
-        float[] sampleBuffer = new float[FrameLength];
         int startReadPos = 0;
 
-        if (OnRecordingStart != null)
-            OnRecordingStart.Invoke();
+        OnRecordingStart?.Invoke();
 
         while (IsRecording)
         {
-            int curClipPos = Microphone.GetPosition(CurrentDeviceName());
+            int curClipPos = Microphone.GetPosition(CurrentDeviceName);
             if (curClipPos < startReadPos)
                 curClipPos += _audioClip.samples;
 
@@ -321,17 +334,13 @@ public class VoiceProcessor
             {
                 if (_didDetect)
                 {
-                    if (OnRecordingStop != null)
-                        OnRecordingStop.Invoke();
+                    OnRecordingStop?.Invoke();
                     _didDetect = false;
                 }
             }
         }
 
-
-        if (OnRecordingStop != null)
-            OnRecordingStop.Invoke();
-        if (RestartRecording != null)
-            RestartRecording.Invoke();
+        OnRecordingStop?.Invoke();
+        RestartRecording?.Invoke();
     }
 }

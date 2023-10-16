@@ -1,7 +1,6 @@
 namespace Vosk
 {
-
-    public class SpkModel : global::System.IDisposable
+    internal class SpkModel : global::System.IDisposable
     {
         private global::System.Runtime.InteropServices.HandleRef handle;
 
@@ -40,5 +39,4 @@ namespace Vosk
 
         public SpkModel(string model_path) : this(VoskPINVOKE.new_SpkModel(model_path)) { }
     }
-
 }

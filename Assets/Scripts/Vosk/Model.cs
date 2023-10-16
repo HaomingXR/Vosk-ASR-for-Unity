@@ -1,6 +1,6 @@
 namespace Vosk
 {
-    public class Model : global::System.IDisposable
+    internal class Model : global::System.IDisposable
     {
         private global::System.Runtime.InteropServices.HandleRef handle;
 
@@ -41,5 +41,4 @@ namespace Vosk
 
         public int vosk_model_find_word(string word) => VoskPINVOKE.Model_vosk_model_find_word(handle, word);
     }
-
 }

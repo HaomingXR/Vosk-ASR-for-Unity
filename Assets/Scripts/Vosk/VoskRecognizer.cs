@@ -1,7 +1,6 @@
 namespace Vosk
 {
-
-    public class VoskRecognizer : System.IDisposable
+    internal class VoskRecognizer : System.IDisposable
     {
         private System.Runtime.InteropServices.HandleRef handle;
 
@@ -95,5 +94,4 @@ namespace Vosk
 
         public string FinalResult() => PtrToStringUTF8(VoskPINVOKE.VoskRecognizer_FinalResult(handle));
     }
-
 }
